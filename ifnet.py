@@ -77,10 +77,26 @@ class IFBlock(nn.Module):
 class IFNet(nn.Module):
     def __init__(self):
         super(IFNet, self).__init__()
-        self.block_tea = IFBlock(10 + 4, c=90)
-        self.blocks = [IFBlock(6, c=90), IFBlock(7 + 4, c=90), IFBlock(7 + 4, c=90)]
+        self.block_tea = IFBlock(20, c=90)
+        self.block0 = IFBlock(6, c=90)
+        self.block1 = IFBlock(17, c=90)
+        self.block2 = IFBlock(17, c=90)
+        self.blocks = [self.block0, self.block1, self.block2]
 
     def forward(self, img0, img1, gt=None, flow_only=True, scale_list=[4, 2, 1]):
+        """Forward call for IFNet.
+
+        Args:
+            img0 (torch.tensor): Input frame 0 in shape (b, c, h, w) where c is 3.
+            img1 (torch.tensor): Input frame 1 in shape (b, c, h, w) where c is 3.
+            gt (torch.tensor, optional): Ground truth frame, only used to train flow teacher.
+                    Defaults to None.
+            flow_only (bool, optional): Only gets flow. Defaults to True.
+            scale_list (list, optional): Scales to pass IFBlock. Defaults to [4, 2, 1].
+
+        Returns:
+            _type_: _description_
+        """
         if flow_only:
             return self.get_flow_only(img0, img1)
         else:
@@ -102,12 +118,12 @@ class IFNet(nn.Module):
                 )
                 flow = flow + flow_d
                 mask = mask + mask_d
-            warped_img0 = warp(img0, flow[:, :2])
-            warped_img1 = warp(img1, flow[:, 2:4])
+            warped_img0 = warp(img0, flow[:, :2].permute(0, 2, 3, 1))
+            warped_img1 = warp(img1, flow[:, 2:4].permute(0, 2, 3, 1))
 
         return flow
 
-    def get_all(self, img0, img1, gt, scale_list=[4, 2, 1]):
+    def get_all(self, img0, img1, gt=None, scale_list=[4, 2, 1]):
         flow_list = []
         merged = []
         mask_list = []
@@ -130,18 +146,18 @@ class IFNet(nn.Module):
                 flow, mask = self.blocks[i](torch.cat((img0, img1), 1), None, scale=scale_list[i])
             mask_list.append(torch.sigmoid(mask))
             flow_list.append(flow)
-            warped_img0 = warp(img0, flow[:, :2])
-            warped_img1 = warp(img1, flow[:, 2:4])
+            warped_img0 = warp(img0, flow[:, :2].permute(0, 2, 3, 1))
+            warped_img1 = warp(img1, flow[:, 2:4].permute(0, 2, 3, 1))
             merged_student = (warped_img0, warped_img1)
             merged.append(merged_student)
 
-        if gt.shape[1] == 3:
+        if gt is not None and gt.shape[1] == 3:
             flow_d, mask_d = self.block_tea(
                 torch.cat((img0, img1, warped_img0, warped_img1, mask, gt), 1), flow, scale=1
             )
             flow_teacher = flow + flow_d
-            warped_img0_teacher = warp(img0, flow_teacher[:, :2])
-            warped_img1_teacher = warp(img1, flow_teacher[:, 2:4])
+            warped_img0_teacher = warp(img0, flow_teacher[:, :2].permute(0, 2, 3, 1))
+            warped_img1_teacher = warp(img1, flow_teacher[:, 2:4].permute(0, 2, 3, 1))
             mask_teacher = torch.sigmoid(mask + mask_d)
             merged_teacher = warped_img0_teacher * mask_teacher + warped_img1_teacher * (
                 1 - mask_teacher
@@ -152,7 +168,7 @@ class IFNet(nn.Module):
 
         for i in range(3):
             merged[i] = merged[i][0] * mask_list[i] + merged[i][1] * (1 - mask_list[i])
-            if gt.shape[1] == 3:
+            if gt is not None and gt.shape[1] == 3:
                 loss_mask = (
                     (
                         (merged[i] - gt).abs().mean(1, True)
@@ -171,4 +187,5 @@ class IFNet(nn.Module):
         # res = tmp[:, :3] * 2 - 1
         # merged[2] = torch.clamp(merged[2] + res, 0, 1)
 
-        return flow_list, mask_list[2], merged, flow_teacher, merged_teacher, loss_distill
+        # return flow_list, mask_list[2], merged, flow_teacher, merged_teacher, loss_distill
+        return merged[2]

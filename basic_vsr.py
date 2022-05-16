@@ -67,8 +67,8 @@ class BasicVSR(nn.Module):
         self.num_feat = num_feat
 
         # alignment
-        self.ifnet = flow_net
-        self.ifnet_name = flow_net.__class__.__name__
+        self.flownet = flow_net
+        self.flownet_name = flow_net.__class__.__name__
 
         # propagation
         self.backward_trunk = ConvResidualBlocks(num_feat + 3, num_feat, num_block)
@@ -89,31 +89,28 @@ class BasicVSR(nn.Module):
     def get_flow(self, x):
         b, n, c, h, w = x.size()
 
-        x_1 = x[:, :-1, :, :, :].reshape(-1, c, h, w)
-        x_2 = x[:, 1:, :, :, :].reshape(-1, c, h, w)
+        x_1 = x[:, :-1].reshape(-1, 3, h, w)
+        x_2 = x[:, 1:].reshape(-1, 3, h, w)
 
-        flows_backward = self.spynet(x_1, x_2).view(b, n - 1, 2, h, w)
-        flows_forward = self.spynet(x_2, x_1).view(b, n - 1, 2, h, w)
-        if self.ifnet_name == "SpyNet":
-            b, c, h, w = x.size()
-            x_1 = x[:, :3]
-            x_2 = x[:, 3:6]
+        if self.flownet_name == "SpyNet":
+            flows_backward = self.flownet(x_1, x_2).view(b, n - 1, 2, h, w)
+            flows_forward = self.flownet(x_2, x_1).view(b, n - 1, 2, h, w)
 
-            flows_backward = self.spynet(x_1, x_2).view(b, 2, h, w)
-            flows_forward = self.spynet(x_2, x_1).view(b, 2, h, w)
-
-            return flows_forward, flows_backward
         else:
-            flows = self.ifnet(x)
-            return flows[:2], flows[2:4]
+            flows = self.flownet(x_1, x_2)
+            flows_forward = flows[:, :2].view(b, n - 1, 2, h, w)
+            flows_backward = flows[:, 2:4].view(b, n - 1, 2, h, w)
+        return flows_forward, flows_backward
 
     def forward(self, x):
         """Forward function of BasicVSR.
         Args:
-            x: Input frames with shape (b, n, c, h, w). n is the number of frames.
+            x: Input frames with shape (b, n, c, h, w). c is channels per frame * num of frames.
         """
         flows_forward, flows_backward = self.get_flow(x)
-        b, n, _, h, w = x.size()
+        b, n, c, h, w = x.size()
+        # x = x.reshape(b, -1, 3, h, w)
+        # n = x.size()[1]
 
         # backward branch
         out_l = []
@@ -148,5 +145,7 @@ class BasicVSR(nn.Module):
             base = F.interpolate(x_i, scale_factor=4, mode="bilinear", align_corners=False)
             out += base
             out_l[i] = out
+        # for o in out_l:
+        #     print(o.shape)
 
         return torch.stack(out_l, dim=1)
