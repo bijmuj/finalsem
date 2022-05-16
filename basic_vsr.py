@@ -102,15 +102,19 @@ class BasicVSR(nn.Module):
             flows_backward = flows[:, 2:4].view(b, n - 1, 2, h, w)
         return flows_forward, flows_backward
 
-    def forward(self, x):
+    def forward(self, x, flows_forward=None, flows_backward=None):
         """Forward function of BasicVSR.
         Args:
-            x: Input frames with shape (b, n, c, h, w). c is channels per frame * num of frames.
+            x (torch.tensor): Input frames with shape (b, n, c, h, w).
+                    c is channels per frame * num of frames.
+            flows_forward (torch.tensor): Forward optical flow estimations of shape
+                    (b, n-1, 2, h, w). Default None.
+            flows_forward (torch.tensor): Backward optical flow estimations of shape
+                    (b, n-1, 2, h, w). Default None.
         """
-        flows_forward, flows_backward = self.get_flow(x)
+        if flows_forward is None or flows_backward is None:
+            flows_forward, flows_backward = self.get_flow(x)
         b, n, c, h, w = x.size()
-        # x = x.reshape(b, -1, 3, h, w)
-        # n = x.size()[1]
 
         # backward branch
         out_l = []
@@ -145,7 +149,5 @@ class BasicVSR(nn.Module):
             base = F.interpolate(x_i, scale_factor=4, mode="bilinear", align_corners=False)
             out += base
             out_l[i] = out
-        # for o in out_l:
-        #     print(o.shape)
 
         return torch.stack(out_l, dim=1)

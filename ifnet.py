@@ -1,3 +1,5 @@
+from typing import Optional
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -83,7 +85,14 @@ class IFNet(nn.Module):
         self.block2 = IFBlock(17, c=90)
         self.blocks = [self.block0, self.block1, self.block2]
 
-    def forward(self, img0, img1, gt=None, flow_only=True, scale_list=[4, 2, 1]):
+    def forward(
+        self,
+        img0: torch.tensor,
+        img1: torch.tensor,
+        gt: torch.tensor = None,
+        flow_only: bool = True,
+        scale_list=[4, 2, 1],
+    ) -> Optional[torch.tensor, tuple[list[torch.tensor], torch.tensor, list[torch.tensor]]]:
         """Forward call for IFNet.
 
         Args:
@@ -95,14 +104,16 @@ class IFNet(nn.Module):
             scale_list (list, optional): Scales to pass IFBlock. Defaults to [4, 2, 1].
 
         Returns:
-            _type_: _description_
+            torch.tensor:
         """
         if flow_only:
             return self.get_flow_only(img0, img1)
         else:
             return self.get_all(img0, img1, gt)
 
-    def get_flow_only(self, img0, img1, scale_list=[4, 2, 1]):
+    def get_flow_only(
+        self, img0: torch.tensor, img1: torch.tensor, scale_list=[4, 2, 1]
+    ) -> torch.tensor:
         flow = None
         warped_img0 = img0
         warped_img1 = img1
@@ -187,5 +198,5 @@ class IFNet(nn.Module):
         # res = tmp[:, :3] * 2 - 1
         # merged[2] = torch.clamp(merged[2] + res, 0, 1)
 
-        # return flow_list, mask_list[2], merged, flow_teacher, merged_teacher, loss_distill
-        return merged[2]
+        return flow_list, mask_list[2], merged, flow_teacher, merged_teacher, loss_distill
+        # return merged[2]

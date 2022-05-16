@@ -7,21 +7,42 @@ from torch.nn.functional import interpolate
 from torch.utils.data import Dataset
 
 
-class VideoDataset(Dataset):
-    def __init__(self, base_path, skip_frames=0, scale_factor=1):
+class Vimeo90KDataset(Dataset):
+    def __init__(
+        self,
+        base_path: str = "dataset/vimeo_septuplet/sequences/",
+        skip_frames: int = 0,
+        scale_factor: int = 1,
+    ):
+        """Dataset class for Vimeo90K septuplet sequences.
+
+        Args:
+            base_path (str): Path to Vimeo90K dataset
+            skip_frames (int, optional): Number of frames to skip. Defaults to 0.
+            scale_factor (int, optional): Factor to downscale by. Defaults to 1.
+        """
         self.skip_frames = skip_frames
         self.scale_factor = scale_factor
 
         self.sequence_paths = []
         folders = glob(f"{base_path}/*/*")
         for folder in folders:
-            contents = list(glob(f"{folder}/*.png"))
+            contents = sorted(list(glob(f"{folder}/*.png")))
             self.sequence_paths.append(contents)
 
     def __len__(self):
         return len(self.sequence_paths)
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: int) -> tuple[torch.tensor, torch.tensor]:
+        """Returns ground truth and partially transformed sequences of images
+
+        Args:
+            index (int): Index for DataLoader.
+
+        Returns:
+            tuple[torch.tensor, torch.tensor]: Index 0 are the downscaled and frame skipped images.
+                    Index 1 are the ground truth images.
+        """
         paths = self.sequence_paths[index]
 
         imgs = [np.array(Image.open(path)) for path in paths]
