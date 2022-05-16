@@ -1,5 +1,3 @@
-from typing import Optional
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -92,7 +90,7 @@ class IFNet(nn.Module):
         gt: torch.tensor = None,
         flow_only: bool = True,
         scale_list=[4, 2, 1],
-    ) -> Optional[torch.tensor, tuple[list[torch.tensor], torch.tensor, list[torch.tensor]]]:
+    ):
         """Forward call for IFNet.
 
         Args:
