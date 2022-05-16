@@ -1,0 +1,5 @@
+__pycache__/**
+input_frames/*.jpg
+output_frames/*.jpg
+videos/*.mp4
+models/*.pth
