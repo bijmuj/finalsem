@@ -13,6 +13,7 @@ class Vimeo90KDataset(Dataset):
         base_path: str = "dataset/vimeo_septuplet/sequences/",
         skip_frames: int = 0,
         scale_factor: int = 1,
+        transforms=None,
     ):
         """Dataset class for Vimeo90K septuplet sequences.
 
@@ -23,7 +24,7 @@ class Vimeo90KDataset(Dataset):
         """
         self.skip_frames = skip_frames
         self.scale_factor = scale_factor
-
+        self.transforms = transforms
         self.sequence_paths = []
         folders = glob(f"{base_path}/*/*")
         for folder in folders:
@@ -33,7 +34,7 @@ class Vimeo90KDataset(Dataset):
     def __len__(self):
         return len(self.sequence_paths)
 
-    def __getitem__(self, index: int) -> tuple[torch.tensor, torch.tensor]:
+    def __getitem__(self, index: int):
         """Returns ground truth and partially transformed sequences of images
 
         Args:
@@ -49,11 +50,12 @@ class Vimeo90KDataset(Dataset):
         imgs = np.array(imgs).astype(np.float32)
         imgs /= 255.0
         imgs = np.transpose(imgs, (0, 3, 1, 2))
+        if self.transforms:
+            imgs = self.transforms(imgs)
 
+        inputs = torch.tensor(imgs.copy())
         if self.skip_frames:
-            inputs = torch.tensor(imgs[:: self.skip_frames + 1].copy())
-        else:
-            inputs = torch.tensor(imgs.copy())
+            inputs = inputs[:: self.skip_frames + 1]
 
         if self.scale_factor != 1:
             inputs = interpolate(inputs, scale_factor=self.scale_factor, mode="bicubic")
