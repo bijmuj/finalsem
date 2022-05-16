@@ -6,6 +6,8 @@ from ifnet import IFNet
 from model_utils import BicubicUpsampler, warp
 from spynet import SpyNet
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 class BasicToRifeGenerator(nn.Module):
     def __init__(self, spynet_path: str):
@@ -34,7 +36,7 @@ class BasicToRifeGenerator(nn.Module):
         _, _, upscaled_inter, _, _, _ = self.ifnet(upscaled_x1, upscaled_x2, flow_only=False)
         upscaled_inter = upscaled_inter[2].view(b, n - 1, c, h, w)
 
-        final_tensor = torch.zeros((b, 2 * n - 1, c, h, w))
+        final_tensor = torch.zeros((b, 2 * n - 1, c, h, w), device=device)
         final_tensor[:, ::2] = upscaled
         final_tensor[:, 1::2] = upscaled_inter
 
@@ -57,16 +59,17 @@ class RifeToBasicGenerator(nn.Module):
         Returns:
             torch.tensor: Output frames of shape (b, 2 * n - 1, c, h, w).
         """
-        b, c, n, h, w = x.size()
+        b, n, c, h, w = x.size()
         x1 = x[:, :-1].reshape(-1, c, h, w)
         x2 = x[:, 1:].reshape(-1, c, h, w)
 
         _, _, inter, _, _, _ = self.ifnet(x1, x2, flow_only=False)
         inter = inter[2].view(b, n - 1, c, h, w)
 
-        mixed = torch.zeros((b, 2 * n - 1, c, h, w))
+        mixed = torch.zeros((b, 2 * n - 1, c, h, w), device=device)
         mixed[:, ::2] = x
         mixed[:, 1::2] = inter
+        # print(mixed.shape)
 
         return self.basic(mixed)
 
@@ -111,7 +114,7 @@ class UpscalingGenerator(nn.Module):
         upscaled_merge = upscaled_warp1 * upscaled_masks + upscaled_warp2 * (1 - upscaled_masks)
         upscaled_merge = upscaled_merge.reshape(b, n - 1, c, h * self.scale, w * self.scale)
 
-        mixed = torch.zeros((b, 2 * n - 1, c, h * self.scale, w * self.scale))
+        mixed = torch.zeros((b, 2 * n - 1, c, h * self.scale, w * self.scale), device=device)
         mixed[:, ::2] = upscaled.reshape(b, n, c, h * self.scale, w * self.scale)
         mixed[:, 1::2] = upscaled_merge
 
